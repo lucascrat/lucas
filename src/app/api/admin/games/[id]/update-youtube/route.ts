@@ -136,6 +136,7 @@ export async function PUT(
 function isValidYouTubeUrl(url: string): boolean {
   if (!url) return true; // URL vazia é válida (remove o link)
   
-  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/)|youtu\.be\/)[\w-]+(&[\w=]*)?$/;
+  // Regex atualizada para aceitar parâmetros de query string completos
+  const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|v\/)|youtu\.be\/)[\w-]+(\?[\w&=%-]*)?$/;
   return youtubeRegex.test(url);
 }

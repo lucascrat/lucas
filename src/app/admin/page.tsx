@@ -383,7 +383,8 @@ export default function AdminDashboard() {
   // YouTube configuration functions
   const validateYouTubeUrl = (url: string): boolean => {
     if (!url) return true; // Empty URL is valid
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/)|youtu\.be\/)[\w-]+/;
+    // Regex atualizada para aceitar parâmetros de query string completos
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/)|youtu\.be\/)[\w-]+(\?[\w&=%-]*)?$/;
     return youtubeRegex.test(url);
   };
 
@@ -791,7 +792,7 @@ export default function AdminDashboard() {
                   ℹ️ Nenhum jogo encontrado
                 </div>
                 <div className="text-xs text-blue-600 dark:text-blue-400">
-                  Crie um novo jogo usando o botão "Novo Jogo" acima para configurar o YouTube.
+                  Crie um novo jogo usando o botão &quot;Novo Jogo&quot; acima para configurar o YouTube.
                 </div>
               </div>
             )}
