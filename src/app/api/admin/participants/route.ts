@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-// GET /api/admin/participants - List participants
+// GET /api/admin/participants - List participants (enriched with winnerType/winnerAt)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -31,7 +31,54 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    return NextResponse.json({ participants });
+    // Enrich with validated bingo claims (winner type and timestamp)
+    let enrichedParticipants = participants || [];
+    const participantIds = (participants || []).map((p: any) => p.id);
+
+    if (participantIds.length > 0) {
+      let claimsQuery = supabaseAdmin
+        .from('bingo_claims')
+        .select('participant_id, game_id, bingo_type, claimed_at, validated');
+
+      // Filter by participants for efficiency
+      claimsQuery = claimsQuery.in('participant_id', participantIds);
+
+      // Scope by game when provided
+      if (gameId) {
+        claimsQuery = claimsQuery.eq('game_id', gameId);
+      }
+
+      const { data: claims, error: claimsError } = await claimsQuery;
+
+      if (claimsError) {
+        console.error('Error fetching bingo claims:', claimsError);
+      } else {
+        const winnerMap = new Map<string, { winnerType: string; winnerAt: string }>();
+        (claims || [])
+          .filter((c: any) => c.validated)
+          .forEach((c: any) => {
+            const current = winnerMap.get(c.participant_id);
+            if (!current || new Date(c.claimed_at) > new Date(current.winnerAt)) {
+              winnerMap.set(c.participant_id, {
+                winnerType: c.bingo_type,
+                winnerAt: c.claimed_at,
+              });
+            }
+          });
+
+        enrichedParticipants = (participants || []).map((p: any) => {
+          const winnerInfo = winnerMap.get(p.id);
+          return {
+            ...p,
+            is_winner: p.is_winner || Boolean(winnerInfo),
+            winnerType: winnerInfo?.winnerType || null,
+            winnerAt: winnerInfo?.winnerAt || null,
+          };
+        });
+      }
+    }
+
+    return NextResponse.json({ participants: enrichedParticipants });
   } catch (error) {
     console.error('Participants API error:', error);
     return NextResponse.json(

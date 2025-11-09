@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar se o token é válido
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     
     if (!payload) {
       return NextResponse.json(
@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     // Retornar informações do usuário admin
     return NextResponse.json({
       user: {
-        id: 'admin',
-        email: payload.email
+        id: payload.user.id,
+        email: payload.user.email
       }
     });
 

@@ -15,9 +15,15 @@ import {
   Calendar,
   ArrowLeft,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Trophy,
+  Grid,
+  Columns,
+  Minus
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+type WinnerType = 'line' | 'column' | 'full-card';
 
 interface Participant {
   id: string;
@@ -29,6 +35,9 @@ interface Participant {
   updated_at: string;
   game_id?: string;
   email?: string;
+  is_winner?: boolean;
+  winnerType?: WinnerType | null;
+  winnerAt?: string | null;
 }
 
 interface AdminUser {
@@ -141,14 +150,23 @@ export default function ParticipantsPage() {
 
   const exportParticipants = () => {
     try {
+      const typeLabel = (type?: WinnerType | null) => {
+        if (type === 'line') return 'Linha';
+        if (type === 'column') return 'Coluna';
+        if (type === 'full-card') return 'Cartela Cheia';
+        return '';
+      };
+
       const csvContent = [
-        ['Nome', 'Telefone', 'Chave PIX', 'Email', 'Data de Cadastro'],
+        ['Nome', 'Telefone', 'Chave PIX', 'Email', 'Data de Cadastro', 'Tipo de Bingo', 'Data da Vitória'],
         ...filteredParticipants.map(p => [
           p.name,
           p.phone,
           p.pix_key,
           p.email || '',
-          new Date(p.created_at).toLocaleString('pt-BR')
+          new Date(p.created_at).toLocaleString('pt-BR'),
+          typeLabel(p.winnerType),
+          p.winnerAt ? new Date(p.winnerAt).toLocaleString('pt-BR') : ''
         ])
       ].map(row => row.join(',')).join('\n');
 
@@ -184,7 +202,7 @@ export default function ParticipantsPage() {
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length === 11) {
       return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
-    }
+      }
     return phone;
   };
 
@@ -344,6 +362,30 @@ export default function ParticipantsPage() {
                           <Badge variant="outline" className="text-xs">
                             ID: {participant.id.slice(0, 8)}...
                           </Badge>
+                          {participant.winnerType && (
+                            <Badge
+                              className={
+                                participant.winnerType === 'line'
+                                  ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                  : participant.winnerType === 'column'
+                                  ? 'bg-green-100 text-green-700 border-green-200'
+                                  : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                              }
+                            >
+                              <span className="inline-flex items-center space-x-1">
+                                {participant.winnerType === 'line' && <Minus className="h-3 w-3" />}
+                                {participant.winnerType === 'column' && <Columns className="h-3 w-3" />}
+                                {participant.winnerType === 'full-card' && <Grid className="h-3 w-3" />}
+                                <span>
+                                  {participant.winnerType === 'line'
+                                    ? 'Linha'
+                                    : participant.winnerType === 'column'
+                                    ? 'Coluna'
+                                    : 'Cartela Cheia'}
+                                </span>
+                              </span>
+                            </Badge>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-600">
@@ -366,6 +408,15 @@ export default function ParticipantsPage() {
                         {participant.email && (
                           <div className="mt-2 text-sm text-gray-600">
                             <strong>Email:</strong> {participant.email}
+                          </div>
+                        )}
+
+                        {participant.winnerAt && (
+                          <div className="mt-2 text-sm text-gray-700 flex items-center space-x-2">
+                            <Trophy className="h-4 w-4 text-yellow-600" />
+                            <span>
+                              Venceu em: {formatDate(participant.winnerAt)}
+                            </span>
                           </div>
                         )}
                       </div>

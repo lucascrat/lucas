@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Hardcoded values for production deployment
-const supabaseUrl = 'https://yubztvbrgrldfueelxfh.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1Ynp0dmJyZ3JsZGZ1ZWVseGZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3MDYwNzgsImV4cCI6MjA3NTI4MjA3OH0.2TrL_0LARjlNSctImwGMht7-hYxMNNSuhnGfLJMySU4'
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1Ynp0dmJyZ3JsZGZ1ZWVseGZoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTcwNjA3OCwiZXhwIjoyMDc1MjgyMDc4fQ.NgCeYS2PMZG6n8NWy_jYqCRloI4ode0mWar8qUm93TU'
+// Valores lidos de variáveis de ambiente para segurança no deploy
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
 // Client for frontend (anon key)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)

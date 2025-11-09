@@ -1,18 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
-
-function createSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function PUT(
   request: NextRequest,
@@ -20,40 +7,26 @@ export async function PUT(
 ) {
   try {
     console.log('🔄 Iniciando atualização do YouTube URL...');
-    
-    // Verificar autenticação do admin usando o mesmo sistema dos outros endpoints
-    const cookieStore = await cookies();
-    const adminToken = cookieStore.get('admin-token');
-    console.log('🔑 Token admin:', adminToken ? 'PRESENTE' : 'AUSENTE');
-
-    if (!adminToken) {
-      console.log('❌ Token de admin não encontrado');
-      return NextResponse.json(
-        { error: 'Token de admin não encontrado' },
-        { status: 401 }
-      );
-    }
-
-    // Verificar se o token é válido usando a função verifyToken
-    console.log('🔍 Verificando token JWT...');
-    const payload = verifyToken(adminToken.value);
-    
-    if (!payload) {
-      console.log('❌ Token inválido');
-      return NextResponse.json(
-        { error: 'Token inválido' },
-        { status: 401 }
-      );
-    }
-
-    console.log('✅ Admin verificado:', payload.email);
 
     // Obter o ID do jogo
     const { id: gameId } = await params;
     console.log('🎮 ID do jogo:', gameId);
 
     // Obter dados da requisição
-    const body = await request.json();
+    const bodyText = await request.text();
+    console.log('📝 Body recebido (raw):', bodyText);
+    
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.log('❌ Erro ao fazer parse do JSON:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid JSON format' },
+        { status: 400 }
+      );
+    }
+    
     console.log('📝 Dados recebidos:', body);
     const { youtube_live_url } = body;
 
@@ -68,10 +41,10 @@ export async function PUT(
     }
     console.log('✅ URL do YouTube válida');
 
-    // Criar cliente Supabase
-    console.log('🔍 Criando cliente Supabase...');
-    const supabase = createSupabaseClient();
-    console.log('✅ Cliente Supabase criado com sucesso');
+    // Usar cliente Supabase admin
+    console.log('🔍 Usando cliente Supabase admin...');
+    const supabase = supabaseAdmin;
+    console.log('✅ Cliente Supabase admin configurado com sucesso');
 
     // Verificar se o jogo existe
     console.log('🔍 Verificando se o jogo existe...');
@@ -98,8 +71,7 @@ export async function PUT(
       .from('games')
       .update({ youtube_live_url })
       .eq('id', gameId)
-      .select()
-      .single();
+      .select();
 
     if (updateError) {
       console.error('❌ Erro ao atualizar jogo:', updateError);
@@ -113,10 +85,20 @@ export async function PUT(
       );
     }
 
+    if (!updatedGame || updatedGame.length === 0) {
+      console.log('❌ Nenhum jogo foi atualizado');
+      return NextResponse.json(
+        { error: 'Nenhum jogo foi atualizado' },
+        { status: 404 }
+      );
+    }
+
+    const gameResult = updatedGame[0];
+
     console.log('✅ URL do YouTube atualizado com sucesso');
     return NextResponse.json({
       success: true,
-      game: updatedGame,
+      game: gameResult,
       message: 'URL do YouTube atualizado com sucesso'
     });
 

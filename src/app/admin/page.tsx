@@ -28,8 +28,8 @@ interface Game {
   created_at: string;
   started_at?: string;
   finished_at?: string;
-  bingo_drawn_numbers?: { number: number }[];
-  bingo_participants?: unknown[];
+  drawn_numbers?: { number: number }[];
+  participants?: unknown[];
   settings?: {
     prize_line?: number;
     prize_column?: number;
@@ -104,7 +104,8 @@ export default function AdminDashboard() {
         
         if (selectedGame) {
           setCurrentGame(selectedGame);
-          setDrawnNumbers(selectedGame.bingo_drawn_numbers?.map((n: { number: number }) => n.number) || []);
+          // API /api/admin/games retorna 'drawn_numbers', não 'bingo_drawn_numbers'
+          setDrawnNumbers(selectedGame.drawn_numbers?.map((n: { number: number }) => n.number) || []);
           console.log('✅ CurrentGame definido:', selectedGame.id);
           console.log('📺 YouTube URL do jogo:', selectedGame.youtube_live_url);
         } else {
@@ -460,6 +461,16 @@ export default function AdminDashboard() {
                 <span className="text-sm text-muted-foreground">Bem-vindo,</span>
                 <span className="text-sm font-medium text-foreground ml-1">{user.email}</span>
               </div>
+              {/* Navegação para Participantes */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push('/admin/participants')}
+                className="flex items-center space-x-2 border-border/30 hover:bg-secondary/60 hover:border-primary/50 transition-all duration-200"
+              >
+                <Users className="h-4 w-4" />
+                <span>Participantes</span>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -482,13 +493,15 @@ export default function AdminDashboard() {
             <h2 className="text-3xl font-bold text-foreground">Dashboard</h2>
             <p className="text-muted-foreground mt-1">Gerencie seus jogos de bingo</p>
           </div>
-          <Button
-            onClick={() => setShowCreateGame(true)}
-            className="flex items-center space-x-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Novo Jogo</span>
-          </Button>
+          <div className="flex space-x-3">
+            <Button
+              onClick={() => setShowCreateGame(true)}
+              className="flex items-center space-x-2 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Novo Jogo</span>
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -538,7 +551,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {currentGame?.bingo_participants?.length || 0}
+                {currentGame?.participants?.length || 0}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Clique para gerenciar

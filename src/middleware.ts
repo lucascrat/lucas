@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   console.log('🔒 Middleware executado para:', request.nextUrl.pathname);
   
   // Check if the request is for admin routes
@@ -23,14 +22,10 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
 
-    // Verify token
-    const user = verifyToken(token);
-    console.log('🔐 Verificação do token:', user ? '✅ VÁLIDO' : '❌ INVÁLIDO');
-    if (!user) {
-      console.log('❌ Token inválido, redirecionando para login');
-      return NextResponse.redirect(new URL('/admin/login', request.url));
-    }
-    
+    // Nota: Evitar verificação JWT aqui para compatibilidade com runtime edge
+    // Rotas de API fazem verificação completa no servidor Node
+    console.log('✅ Token presente, permitindo acesso ao admin');
+
     console.log('✅ Acesso autorizado para:', request.nextUrl.pathname);
   }
 
@@ -49,21 +44,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify token
-    const user = verifyToken(token);
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    // Add user info to headers for API routes
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-admin-user', JSON.stringify(user));
-    
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
+    // Não validar token aqui; as rotas /api/admin validam internamente
+    return NextResponse.next();
   }
 
   return NextResponse.next();

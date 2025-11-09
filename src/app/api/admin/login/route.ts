@@ -1,10 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const runtime = 'nodejs';
 import { verifyAdminCredentials, generateToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 Iniciando processo de login...');
-    const { email, password } = await request.json();
+    
+    // Verificar se há dados no body
+    const body = await request.text();
+    console.log('📝 Body recebido (raw):', body);
+    
+    if (!body) {
+      console.log('❌ Body vazio');
+      return NextResponse.json(
+        { error: 'Request body is empty' },
+        { status: 400 }
+      );
+    }
+    
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(body);
+    } catch (parseError) {
+      console.log('❌ Erro ao fazer parse do JSON:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid JSON format' },
+        { status: 400 }
+      );
+    }
+    
+    const { email, password } = parsedBody;
     
     console.log('📝 Dados recebidos:', { email, password: password ? '[PRESENTE]' : '[AUSENTE]' });
 
@@ -52,8 +77,9 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Login error:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', message },
       { status: 500 }
     );
   }
