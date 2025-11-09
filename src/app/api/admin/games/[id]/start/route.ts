@@ -37,7 +37,42 @@ export async function POST(
       return NextResponse.json({ error: 'Jogo já foi finalizado' }, { status: 400 });
     }
 
-    // Atualizar status do jogo para ativo
+    // Finalizar quaisquer jogos anteriormente ativos e limpar seus números
+    const { data: previousActiveGames, error: listActiveError } = await supabaseAdmin
+      .from('games')
+      .select('id')
+      .eq('status', 'active')
+      .neq('id', resolvedParams.id);
+
+    if (listActiveError) {
+      console.error('❌ Erro ao listar jogos ativos anteriores:', listActiveError);
+      // Prosseguir mesmo assim para garantir que o novo jogo inicie
+    }
+
+    if (previousActiveGames && previousActiveGames.length > 0) {
+      const previousIds = previousActiveGames.map(g => g.id);
+      console.log(`🔧 Finalizando jogos ativos anteriores: ${previousIds.join(', ')}`);
+
+      const { error: finishError } = await supabaseAdmin
+        .from('games')
+        .update({ status: 'finished', finished_at: new Date().toISOString() })
+        .in('id', previousIds);
+
+      if (finishError) {
+        console.error('⚠️ Erro ao finalizar jogos anteriores:', finishError);
+      }
+
+      const { error: clearNumbersError } = await supabaseAdmin
+        .from('drawn_numbers')
+        .delete()
+        .in('game_id', previousIds);
+
+      if (clearNumbersError) {
+        console.error('⚠️ Erro ao limpar números dos jogos anteriores:', clearNumbersError);
+      }
+    }
+
+    // Atualizar status do jogo atual para ativo
     const { data: game, error } = await supabaseAdmin
       .from('games')
       .update({
@@ -60,7 +95,7 @@ export async function POST(
 
     return NextResponse.json({ 
       game,
-      message: 'Jogo iniciado com sucesso!' 
+      message: 'Jogo iniciado. Jogos anteriores finalizados e números limpos.' 
     });
 
   } catch (error) {
