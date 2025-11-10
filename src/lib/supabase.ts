@@ -1,20 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Valores lidos de variáveis de ambiente para segurança no deploy
+// Valores lidos de variáveis de ambiente para uso no cliente
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 
-// Client for frontend (anon key)
+// Client para frontend (anon key). Não inicializa service role aqui para evitar crash no cliente.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-// Admin client for backend (service role key)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-})
 
 // Database types
 export interface Game {

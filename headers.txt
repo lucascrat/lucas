@@ -1,0 +1,12 @@
+HTTP/1.1 401 Unauthorized
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Mon, 10 Nov 2025 16:09:29 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+X-Matched-Path: /api/admin/login
+X-Vercel-Cache: MISS
+X-Vercel-Id: gru1::iad1::jhmg8-1762790969627-55f21b54168e
+Transfer-Encoding: chunked
+

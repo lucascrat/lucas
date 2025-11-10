@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { checkBingo } from '@/lib/utils';
 
 // POST /api/admin/games/[id]/validate-bingo - Validate bingo claim

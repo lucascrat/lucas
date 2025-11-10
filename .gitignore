@@ -17,3 +17,8 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
+
+.vercel
+
+# Do not commit env import file
+import.env

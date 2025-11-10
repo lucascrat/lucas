@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { verifyToken } from '@/lib/auth';
 
 // POST - Sortear próximo número
@@ -17,8 +17,13 @@ export async function POST(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Admin client indisponível' }, { status: 500 });
+    }
+    const admin = supabaseAdmin!;
+
     // Verificar se o jogo existe e está ativo
-    const { data: currentGame, error: fetchError } = await supabaseAdmin
+    const { data: currentGame, error: fetchError } = await admin
       .from('games')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -34,7 +39,7 @@ export async function POST(
     }
 
     // Buscar números já sorteados
-    const { data: drawnNumbers, error: drawnError } = await supabaseAdmin
+    const { data: drawnNumbers, error: drawnError } = await admin
       .from('drawn_numbers')
       .select('number')
       .eq('game_id', resolvedParams.id);
@@ -61,7 +66,7 @@ export async function POST(
     console.log(`🎯 Número sorteado: ${newNumber}`);
 
     // Salvar número sorteado no banco
-    const { data: drawnNumber, error: insertError } = await supabaseAdmin
+    const { data: drawnNumber, error: insertError } = await admin
       .from('drawn_numbers')
       .insert({
         game_id: resolvedParams.id,
@@ -77,7 +82,7 @@ export async function POST(
     }
 
     // Atualizar último número sorteado no jogo (usando settings JSONB)
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await admin
       .from('games')
       .update({
         settings: {

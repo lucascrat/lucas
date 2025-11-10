@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import { sign as jwtSign, verify as jwtVerify } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = (process.env.JWT_SECRET || 'your-secret-key').trim();
@@ -41,7 +41,7 @@ export async function verifyAdminCredentials(email: string, password: string): P
 }
 
 export function generateToken(user: AdminUser): string {
-  return jwt.sign(
+  return jwtSign(
     { 
       id: user.id, 
       email: user.email,
@@ -55,7 +55,7 @@ export function generateToken(user: AdminUser): string {
 export async function verifyToken(token: string): Promise<{ user: { id: string; email: string; role: string } } | null> {
   try {
     console.log('🔍 Verificando token JWT...');
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role?: string };
+    const decoded = jwtVerify(token, JWT_SECRET) as { id: string; email: string; role?: string };
     console.log('✅ Token válido para:', decoded.email);
     
     return {

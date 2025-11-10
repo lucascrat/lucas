@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { verifyToken } from '@/lib/auth';
 
 // POST - Inserir número manual
@@ -25,8 +25,13 @@ export async function POST(
       return NextResponse.json({ error: 'Número inválido. Deve ser entre 1 e 75' }, { status: 400 });
     }
 
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Admin client indisponível' }, { status: 500 });
+    }
+    const admin = supabaseAdmin!;
+
     // Verificar se o jogo existe e está ativo
-    const { data: currentGame, error: fetchError } = await supabaseAdmin
+    const { data: currentGame, error: fetchError } = await admin
       .from('games')
       .select('*')
       .eq('id', resolvedParams.id)
@@ -42,7 +47,7 @@ export async function POST(
     }
 
     // Buscar números já sorteados
-    const { data: drawnNumbers, error: drawnError } = await supabaseAdmin
+    const { data: drawnNumbers, error: drawnError } = await admin
       .from('drawn_numbers')
       .select('number')
       .eq('game_id', resolvedParams.id);
@@ -68,7 +73,7 @@ export async function POST(
     console.log(`🎯 Número inserido manualmente: ${number}`);
 
     // Salvar número no banco com flag de inserção manual
-    const { data: drawnNumber, error: insertError } = await supabaseAdmin
+    const { data: drawnNumber, error: insertError } = await admin
       .from('drawn_numbers')
       .insert({
         game_id: resolvedParams.id,
@@ -85,7 +90,7 @@ export async function POST(
     }
 
     // Atualizar último número no jogo (usando settings JSONB)
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await admin
       .from('games')
       .update({
         settings: {

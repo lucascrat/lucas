@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 // GET /api/admin/participants - List participants (enriched with winnerType/winnerAt)
 export async function GET(request: NextRequest) {
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         console.error('Error fetching bingo claims:', claimsError);
       } else {
         const winnerMap = new Map<string, { winnerType: string; winnerAt: string }>();
+        const typeFlagsMap = new Map<string, { hasLine: boolean; hasColumn: boolean; hasFullCard: boolean }>();
         (claims || [])
           .filter((c: any) => c.validated)
           .forEach((c: any) => {
@@ -64,15 +65,34 @@ export async function GET(request: NextRequest) {
                 winnerAt: c.claimed_at,
               });
             }
+
+            // Aggregate flags per participant across validated claims
+            const flags = typeFlagsMap.get(c.participant_id) || {
+              hasLine: false,
+              hasColumn: false,
+              hasFullCard: false
+            };
+            if (c.bingo_type === 'line') flags.hasLine = true;
+            if (c.bingo_type === 'column') flags.hasColumn = true;
+            if (c.bingo_type === 'full-card') flags.hasFullCard = true;
+            typeFlagsMap.set(c.participant_id, flags);
           });
 
         enrichedParticipants = (participants || []).map((p: any) => {
           const winnerInfo = winnerMap.get(p.id);
+          const flags = typeFlagsMap.get(p.id) || {
+            hasLine: false,
+            hasColumn: false,
+            hasFullCard: false
+          };
           return {
             ...p,
             is_winner: p.is_winner || Boolean(winnerInfo),
             winnerType: winnerInfo?.winnerType || null,
             winnerAt: winnerInfo?.winnerAt || null,
+            hasLine: flags.hasLine,
+            hasColumn: flags.hasColumn,
+            hasFullCard: flags.hasFullCard,
           };
         });
       }

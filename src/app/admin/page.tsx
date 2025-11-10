@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogOut, Play, Pause, RotateCcw, Users, Trophy, Hash, Upload, Plus, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 interface AdminUser {
   id: string;
@@ -52,6 +54,11 @@ export default function AdminDashboard() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [manualNumber, setManualNumber] = useState<string>('');
   const [isInsertingManual, setIsInsertingManual] = useState(false);
+
+  // Realtime e fallback
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'fallback'>('connecting');
+  const [lastSeenClaimAt, setLastSeenClaimAt] = useState<string>(() => new Date().toISOString());
+  const [lastSeenValidatedAt, setLastSeenValidatedAt] = useState<string>(() => new Date().toISOString());
   
   // Form states
   const [gameName, setGameName] = useState('');
@@ -105,7 +112,25 @@ export default function AdminDashboard() {
         if (selectedGame) {
           setCurrentGame(selectedGame);
           // API /api/admin/games retorna 'drawn_numbers', não 'bingo_drawn_numbers'
-          setDrawnNumbers(selectedGame.drawn_numbers?.map((n: { number: number }) => n.number) || []);
+          // Em produção, se variáveis de ambiente do Supabase estiverem ausentes,
+          // o relacionamento pode vir vazio/indefinido e limpar o estado local indevidamente.
+          // Para evitar que o número sorteado "apareça e desapareça", só atualizamos
+          // o estado quando a API trouxer uma lista com tamanho >= ao atual.
+          const apiDrawnNumbers = Array.isArray(selectedGame.drawn_numbers)
+            ? selectedGame.drawn_numbers.map((n: { number: number }) => n.number)
+            : null;
+
+          setDrawnNumbers(prev => {
+            if (apiDrawnNumbers === null) {
+              console.log('⚠️ drawn_numbers indefinido na resposta. Mantendo estado local.');
+              return prev;
+            }
+            if (apiDrawnNumbers.length < prev.length && selectedGame.status === 'active') {
+              console.log('⚠️ Resposta com menos números que o estado local. Evitando limpar indevidamente.');
+              return prev;
+            }
+            return apiDrawnNumbers;
+          });
           console.log('✅ CurrentGame definido:', selectedGame.id);
           console.log('📺 YouTube URL do jogo:', selectedGame.youtube_live_url);
         } else {
@@ -122,6 +147,174 @@ export default function AdminDashboard() {
     checkAuth();
     loadGames();
   }, []);
+
+  // Realtime: Aviso quando alguém reivindicar/validar BINGO
+  useEffect(() => {
+    const gameId = currentGame?.id;
+    if (!gameId) return;
+
+    // Subscribe to inserts on bingo_claims for the current game
+    const channel = supabase
+      .channel(`bingo-claims-${gameId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bingo_claims', filter: `game_id=eq.${gameId}` },
+        async (payload) => {
+          try {
+            const claim: any = payload?.new || {};
+            const type = claim.claim_type || claim.bingo_type;
+            const typeLabel =
+              type === 'full-card' ? 'Cartela completa' :
+              type === 'line' ? 'Linha' :
+              type === 'column' ? 'Coluna' : 'Bingo';
+
+            // Buscar nome do participante para exibir no toast
+            let participantName = 'Participante';
+            if (claim.participant_id) {
+              try {
+                const res = await fetch(`/api/admin/participants/${claim.participant_id}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  participantName = data?.participant?.name || participantName;
+                }
+              } catch (e) {
+                // Silenciar erro de busca de nome no toast
+              }
+            }
+
+            toast.success(`🎉 ${participantName} reivindicou BINGO (${typeLabel})!`);
+          } catch (err) {
+            console.error('Erro ao processar evento de bingo_claims:', err);
+          }
+        }
+      )
+      // Subscribe to updates when claim is validated
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bingo_claims', filter: `game_id=eq.${gameId}` },
+        async (payload) => {
+          try {
+            const oldClaim: any = payload?.old || {};
+            const newClaim: any = payload?.new || {};
+            if (!newClaim?.validated || oldClaim?.validated === true) {
+              return; // Only notify when validation just turned true
+            }
+
+            const type = newClaim.claim_type || newClaim.bingo_type;
+            const typeLabel =
+              type === 'full-card' ? 'Cartela completa' :
+              type === 'line' ? 'Linha' :
+              type === 'column' ? 'Coluna' : 'Bingo';
+
+            // Buscar nome do participante para exibir no toast
+            let participantName = 'Participante';
+            if (newClaim.participant_id) {
+              try {
+                const res = await fetch(`/api/admin/participants/${newClaim.participant_id}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  participantName = data?.participant?.name || participantName;
+                }
+              } catch (e) {
+                // Silenciar erro de busca de nome no toast
+              }
+            }
+
+            toast.success(`✅ Bingo validado: ${participantName} ganhou (${typeLabel})!`);
+          } catch (err) {
+            console.error('Erro ao processar validação de bingo_claims:', err);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected');
+        }
+      });
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
+      setRealtimeStatus('connecting');
+    };
+  }, [currentGame?.id]);
+
+  // Fallback: polling periódico via API admin usando supabaseAdmin
+  useEffect(() => {
+    const gameId = currentGame?.id;
+    if (!gameId) return;
+
+    let mounted = true;
+    const interval = setInterval(async () => {
+      try {
+        // Claims inseridos desde lastSeenClaimAt
+        const claimsRes = await fetch(`/api/admin/claims?game_id=${gameId}&since=${encodeURIComponent(lastSeenClaimAt)}&only_validated=false`);
+        if (claimsRes.ok) {
+          const { claims } = await claimsRes.json();
+          for (const c of claims || []) {
+            const createdAt = c.created_at ? new Date(c.created_at) : null;
+            const label = c.type_label || 'Bingo';
+            const name = c.participant_name || 'Participante';
+            if (createdAt && createdAt.toISOString() > lastSeenClaimAt) {
+              toast.success(`🎉 ${name} reivindicou BINGO (${label})!`);
+            }
+          }
+          // Atualiza lastSeenClaimAt para o mais recente
+          const maxCreated = (claims || [])
+            .map((c: any) => c.created_at)
+            .filter(Boolean)
+            .map((d: string) => new Date(d).toISOString())
+            .sort()
+            .pop();
+          if (mounted && maxCreated && maxCreated > lastSeenClaimAt) {
+            setLastSeenClaimAt(maxCreated);
+          }
+        } else {
+          // Se polling está funcionando e Realtime não, ativamos status fallback
+          if (mounted && realtimeStatus !== 'connected') {
+            setRealtimeStatus('fallback');
+          }
+        }
+
+        // Claims validados desde lastSeenValidatedAt
+        const validatedRes = await fetch(`/api/admin/claims?game_id=${gameId}&since=${encodeURIComponent(lastSeenValidatedAt)}&only_validated=true`);
+        if (validatedRes.ok) {
+          const { claims } = await validatedRes.json();
+          for (const c of claims || []) {
+            const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
+            const label = c.type_label || 'Bingo';
+            const name = c.participant_name || 'Participante';
+            if (c.validated === true && updatedAt && updatedAt.toISOString() > lastSeenValidatedAt) {
+              toast.success(`✅ Bingo validado: ${name} ganhou (${label})!`);
+            }
+          }
+          const maxUpdated = (claims || [])
+            .map((c: any) => c.updated_at)
+            .filter(Boolean)
+            .map((d: string) => new Date(d).toISOString())
+            .sort()
+            .pop();
+          if (mounted && maxUpdated && maxUpdated > lastSeenValidatedAt) {
+            setLastSeenValidatedAt(maxUpdated);
+          }
+        } else {
+          if (mounted && realtimeStatus !== 'connected') {
+            setRealtimeStatus('fallback');
+          }
+        }
+      } catch (err) {
+        if (mounted && realtimeStatus !== 'connected') {
+          setRealtimeStatus('fallback');
+        }
+      }
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [currentGame?.id, lastSeenClaimAt, lastSeenValidatedAt, realtimeStatus]);
 
   const handleLogout = async () => {
     try {
@@ -456,16 +649,28 @@ export default function AdminDashboard() {
                 Bingo Admin Panel
               </h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="hidden sm:block">
-                <span className="text-sm text-muted-foreground">Bem-vindo,</span>
-                <span className="text-sm font-medium text-foreground ml-1">{user.email}</span>
-              </div>
-              {/* Navegação para Participantes */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push('/admin/participants')}
+          <div className="flex items-center space-x-4">
+            <div className="hidden sm:block">
+              <span className="text-sm text-muted-foreground">Bem-vindo,</span>
+              <span className="text-sm font-medium text-foreground ml-1">{user.email}</span>
+            </div>
+            {/* Indicador de Realtime */}
+            <div className={`text-xs px-2 py-1 rounded-md border ${
+              realtimeStatus === 'connected'
+                ? 'bg-green-100 text-green-700 border-green-200'
+                : realtimeStatus === 'fallback'
+                ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                : 'bg-gray-100 text-gray-600 border-gray-200'
+            }`}>
+              {realtimeStatus === 'connected' && 'Realtime: Conectado'}
+              {realtimeStatus === 'fallback' && 'Realtime: Fallback (polling ativo)'}
+              {realtimeStatus === 'connecting' && 'Realtime: Conectando…'}
+            </div>
+            {/* Navegação para Participantes */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push('/admin/participants')}
                 className="flex items-center space-x-2 border-border/30 hover:bg-secondary/60 hover:border-primary/50 transition-all duration-200"
               >
                 <Users className="h-4 w-4" />

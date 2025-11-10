@@ -38,6 +38,9 @@ interface Participant {
   is_winner?: boolean;
   winnerType?: WinnerType | null;
   winnerAt?: string | null;
+  hasLine?: boolean;
+  hasColumn?: boolean;
+  hasFullCard?: boolean;
 }
 
 interface AdminUser {
@@ -417,6 +420,30 @@ export default function ParticipantsPage() {
                             <span>
                               Venceu em: {formatDate(participant.winnerAt)}
                             </span>
+                          </div>
+                        )}
+
+                        {/* Detalhes estruturados do Bingo */}
+                        {(participant.hasLine || participant.hasColumn || participant.hasFullCard) && (
+                          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Badge className={`justify-start ${participant.hasLine ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                              <span className="inline-flex items-center space-x-1">
+                                <Minus className="h-3 w-3" />
+                                <span>Linha: {participant.hasLine ? 'Sim' : 'Não'}</span>
+                              </span>
+                            </Badge>
+                            <Badge className={`justify-start ${participant.hasColumn ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                              <span className="inline-flex items-center space-x-1">
+                                <Columns className="h-3 w-3" />
+                                <span>Coluna: {participant.hasColumn ? 'Sim' : 'Não'}</span>
+                              </span>
+                            </Badge>
+                            <Badge className={`justify-start ${participant.hasFullCard ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                              <span className="inline-flex items-center space-x-1">
+                                <Grid className="h-3 w-3" />
+                                <span>Cartela Completa: {participant.hasFullCard ? 'Sim' : 'Não'}</span>
+                              </span>
+                            </Badge>
                           </div>
                         )}
                       </div>
