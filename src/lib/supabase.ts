@@ -1,11 +1,31 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Valores lidos de variáveis de ambiente para uso no cliente
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Client para frontend (anon key). Não inicializa service role aqui para evitar crash no cliente.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Client para frontend (anon key). Evita crash quando envs faltam em produção.
+// Quando as variáveis públicas não estiverem configuradas no Vercel, exporta um cliente no-op
+// para que a UI carregue e funcionalidades de realtime sejam simplesmente ignoradas.
+const createNoopClient = () => {
+  const noopChannel = {
+    on: () => noopChannel,
+    subscribe: () => ({ unsubscribe: () => {} })
+  } as any
+
+  return {
+    channel: () => noopChannel
+  } as any
+}
+
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : (() => {
+      if (typeof window !== 'undefined') {
+        console.error('Supabase env ausentes: configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no Vercel.')
+      }
+      return createNoopClient()
+    })()
 
 // Database types
 export interface Game {
